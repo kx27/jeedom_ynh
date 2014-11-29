@@ -29,6 +29,9 @@ sudo mkdir $final_path/tmp
 sudo chmod 775 -R $final_path
 sudo chown -R www-data:www-data $final_path
 
+# Create group gpio
+sudo grouppadd gpio
+
 # For nginx user to be able to communicate with domotic devices
 sudo adduser www-data dialout
 sudo adduser www-data gpio
@@ -42,11 +45,24 @@ db_user=jeedom
 sudo yunohost app initdb $db_user -p $db_pwd
 sudo yunohost app setting jeedom mysqlpwd -v $db_pwd
 
+# Configure Crontab
+crontab < <(crontab -l ; echo "* * * * * su --shell=/bin/bash - www-data -c "/usr/bin/php /usr/share/nginx/www/jeedom/core/php/jeeCron.php" >> /dev/null 2>&1")
+sudo service cron restart
+  
 # Configure Jeedom database and initialize app
 sudo cp $final_path/core/config/common.config.sample.php $final_path/core/config/common.config.php
 sudo sed -i -e "s/#PASSWORD#/${db_pwd}/g" $final_path/core/config/common.config.php 
 sudo chown www-data:www-data $final_path/core/config/common.config.php
 sudo php $final_path/install/install.php mode=force
+
+# Configure SSOwat - conf.json.persistent
+sudo echo >> /etc/ssowat/conf.json.persistent
+sudo echo "\"skipped_urls\": [" >> /etc/ssowat/conf.json.persistent
+sudo echo "\"$domain/jeedom/plugins\"," >> /etc/ssowat/conf.json.persistent
+sudo echo "\"$domain/jeedom/core\"," >> /etc/ssowat/conf.json.persistent
+sudo echo "\"$domain/nodeJS\"," >> /etc/ssowat/conf.json.persistent
+sudo echo "\"$domain/socket.io" >> /etc/ssowat/conf.json.persistent
+sudo echo "]," >> /etc/ssowat/conf.json.persistent
 
 # Configure Nginx and reload
 sudo sed -i "s@PATHTOCHANGE@$path@g"  ../conf/nginx.conf
