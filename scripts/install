@@ -47,13 +47,8 @@ sudo yunohost app setting jeedom mysqlpwd -v $db_pwd
 
 # Configure Crontab
 crontab < <(crontab -l ; echo "* * * * * su --shell=/bin/bash - www-data -c "/usr/bin/php /usr/share/nginx/www/jeedom/core/php/jeeCron.php" >> /dev/null 2>&1")
+crontab < <(crontab -l -u $user ; echo "* * * * * su --shell=/bin/bash - www-data -c "/usr/bin/php /usr/share/nginx/www/jeedom/core/php/jeeCron.php" >> /dev/null 2>&1")
 sudo service cron restart
-  
-# Configure Jeedom database and initialize app
-sudo cp $final_path/core/config/common.config.sample.php $final_path/core/config/common.config.php
-sudo sed -i -e "s/#PASSWORD#/${db_pwd}/g" $final_path/core/config/common.config.php 
-sudo chown www-data:www-data $final_path/core/config/common.config.php
-sudo php $final_path/install/install.php mode=force
 
 # Configure SSOwat - conf.json.persistent
 sudo echo >> /etc/ssowat/conf.json.persistent
@@ -63,6 +58,12 @@ sudo echo "\"$domain/jeedom/core\"," >> /etc/ssowat/conf.json.persistent
 sudo echo "\"$domain/nodeJS\"," >> /etc/ssowat/conf.json.persistent
 sudo echo "\"$domain/socket.io" >> /etc/ssowat/conf.json.persistent
 sudo echo "]," >> /etc/ssowat/conf.json.persistent
+  
+# Configure Jeedom database and initialize app
+sudo cp $final_path/core/config/common.config.sample.php $final_path/core/config/common.config.php
+sudo sed -i -e "s/#PASSWORD#/${db_pwd}/g" $final_path/core/config/common.config.php 
+sudo chown www-data:www-data $final_path/core/config/common.config.php
+sudo php $final_path/install/install.php mode=force
 
 # Configure Nginx and reload
 sudo sed -i "s@PATHTOCHANGE@$path@g"  ../conf/nginx.conf
@@ -77,10 +78,10 @@ sudo update-rc.d jeedom defaults
 sudo sed -i 's%PATH_TO_JEEDOM="/usr/share/nginx/www/jeedom"%PATH_TO_JEEDOM="/var/www/jeedom"%g' /etc/init.d/jeedom
 sudo service jeedom start
 
-# Configure LDAP and the Admin User
+# Configure LDAP and the Admin User and user Yunohost
 mysql -u $db_user -p$db_pwd $db_user < ../conf/ldap_config.sql
 mysql -u $db_user -p$db_pwd $db_user -e "INSERT INTO user (id, login, password, options, hash, rights) VALUES ('0', '$user', '', NULL, NULL, '{\"admin\":1}');"
-
+mysql -u $db_user -p$db_pwd $db_user -e "INSERT INTO user (id, login, password, options, hash, rights) VALUES ('0', '$user', '', NULL, NULL, '{\"$user\":1}');"
 # Access to API without SSO
 sudo yunohost app setting jeedom unprotected_uris -v "/core/api/jeeApi.php"
 sudo yunohost app ssowatconf
